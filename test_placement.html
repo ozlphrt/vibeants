@@ -1,0 +1,374 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Simulation - Placement Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #202020;
+            color: white;
+            font-family: Arial, sans-serif;
+        }
+        
+        #testCanvas {
+            border: 2px solid #444;
+            background: #202020;
+        }
+        
+        .controls {
+            margin: 20px 0;
+            padding: 15px;
+            background: #333;
+            border-radius: 8px;
+        }
+        
+        button {
+            background: #ffa500;
+            color: black;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        button:hover {
+            background: #ff8c00;
+        }
+        
+        .info {
+            background: #444;
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        
+        .distance-info {
+            background: #555;
+            padding: 8px;
+            margin: 5px 0;
+            border-radius: 4px;
+            font-family: monospace;
+        }
+    </style>
+</head>
+<body>
+    <h1>Ant Simulation - Strategic Placement Test</h1>
+    
+    <div class="controls">
+        <button id="startTest">Start Placement Test</button>
+        <button id="nextStep" disabled>Next Step</button>
+        <button id="approve" disabled>Approve Current Step</button>
+        <button id="reject" disabled>Reject - Give Feedback</button>
+    </div>
+    
+    <div class="info" id="stepInfo">
+        Click "Start Placement Test" to begin the step-by-step placement process.
+    </div>
+    
+    <div class="info" id="distanceInfo" style="display: none;">
+        <h3>Distance Information:</h3>
+        <div id="distanceDetails"></div>
+    </div>
+    
+    <canvas id="testCanvas" width="1200" height="800"></canvas>
+    
+    <script>
+        class Vec {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+            }
+            
+            subtract(other) {
+                return new Vec(this.x - other.x, this.y - other.y);
+            }
+            
+            magnitude() {
+                return Math.sqrt(this.x * this.x + this.y * this.y);
+            }
+        }
+        
+        class TestPlacement {
+            constructor(canvas) {
+                this.canvas = canvas;
+                this.ctx = canvas.getContext('2d');
+                this.width = canvas.width;
+                this.height = canvas.height;
+                
+                // Test state
+                this.currentStep = 0;
+                this.nest1 = null;
+                this.nest2 = null;
+                this.foodSources = [];
+                this.obstacles = [];
+                this.currentPair = 0;
+                
+                this.setupEventListeners();
+            }
+            
+            setupEventListeners() {
+                document.getElementById('startTest').addEventListener('click', () => this.startTest());
+                document.getElementById('nextStep').addEventListener('click', () => this.nextStep());
+                document.getElementById('approve').addEventListener('click', () => this.approve());
+                document.getElementById('reject').addEventListener('click', () => this.reject());
+            }
+            
+            startTest() {
+                this.currentStep = 1;
+                this.placeNests();
+                this.updateStepInfo();
+                this.draw();
+                this.enableStepButtons();
+            }
+            
+            placeNests() {
+                const nestMargin = 100;
+                
+                // Place nests on opposite sides
+                this.nest1 = {
+                    x: nestMargin + Math.random() * (this.width * 0.3 - nestMargin),
+                    y: nestMargin + Math.random() * (this.height - 2 * nestMargin),
+                    radius: 40,
+                    color: '#a67c52'
+                };
+                
+                this.nest2 = {
+                    x: this.width - nestMargin - Math.random() * (this.width * 0.3 - nestMargin),
+                    y: nestMargin + Math.random() * (this.height - 2 * nestMargin),
+                    radius: 40,
+                    color: '#4a664a'
+                };
+                
+                // Ensure nests don't overlap
+                const nestDistance = Math.sqrt((this.nest1.x - this.nest2.x) ** 2 + (this.nest1.y - this.nest2.y) ** 2);
+                if (nestDistance < this.nest1.radius + this.nest2.radius + 50) {
+                    console.log('Nests too close, adjusting positions...');
+                    const angle = Math.atan2(this.nest2.y - this.nest1.y, this.nest2.x - this.nest1.x);
+                    const minDistance = this.nest1.radius + this.nest2.radius + 100;
+                    
+                    this.nest2.x = this.nest1.x + Math.cos(angle) * minDistance;
+                    this.nest2.y = this.nest1.y + Math.sin(angle) * minDistance;
+                    
+                    this.nest2.x = Math.max(nestMargin, Math.min(this.width - nestMargin, this.nest2.x));
+                    this.nest2.y = Math.max(nestMargin, Math.min(this.height - nestMargin, this.nest2.y));
+                }
+            }
+            
+            nextStep() {
+                if (this.currentStep === 1) {
+                    // Step 2: Place first pair of food sources
+                    this.placeFoodPair();
+                    this.currentStep = 2;
+                } else if (this.currentStep === 2) {
+                    // Step 3: Place obstacles for current pair
+                    this.placeObstaclePair();
+                    this.currentStep = 3;
+                } else if (this.currentStep === 3) {
+                    // Move to next pair
+                    this.currentPair++;
+                    if (this.currentPair < 4) {
+                        this.placeFoodPair();
+                        this.currentStep = 2;
+                    } else {
+                        this.currentStep = 4; // Complete
+                    }
+                }
+                
+                this.updateStepInfo();
+                this.draw();
+            }
+            
+                         placeFoodPair() {
+                 const baseDistance = Math.min(this.width, this.height) * 0.4; // Increased from 0.25 to 0.4 (40% of canvas)
+                 const distance = baseDistance + (Math.random() - 0.5) * 50;
+                
+                const angle1 = (this.currentPair * Math.PI / 2) + (Math.random() - 0.5) * 0.5;
+                const angle2 = angle1 + Math.PI + (Math.random() - 0.5) * 0.5;
+                
+                const food1 = {
+                    x: this.nest1.x + Math.cos(angle1) * distance,
+                    y: this.nest1.y + Math.sin(angle1) * distance,
+                    radius: 15,
+                    color: '#ff0000'
+                };
+                
+                const food2 = {
+                    x: this.nest2.x + Math.cos(angle2) * distance,
+                    y: this.nest2.y + Math.sin(angle2) * distance,
+                    radius: 15,
+                    color: '#00ff00'
+                };
+                
+                this.foodSources.push(food1, food2);
+                
+                // Calculate and display distances
+                const dist1 = Math.sqrt((food1.x - this.nest1.x) ** 2 + (food1.y - this.nest1.y) ** 2);
+                const dist2 = Math.sqrt((food2.x - this.nest2.x) ** 2 + (food2.y - this.nest2.y) ** 2);
+                
+                this.showDistanceInfo(dist1, dist2);
+            }
+            
+            placeObstaclePair() {
+                const food1 = this.foodSources[this.foodSources.length - 2];
+                const food2 = this.foodSources[this.foodSources.length - 1];
+                
+                const obstacle1 = {
+                    x: (food1.x + this.nest1.x) / 2 + (Math.random() - 0.5) * 40,
+                    y: (food1.y + this.nest1.y) / 2 + (Math.random() - 0.5) * 40,
+                    radius: 20,
+                    color: '#888888'
+                };
+                
+                const obstacle2 = {
+                    x: (food2.x + this.nest2.x) / 2 + (Math.random() - 0.5) * 40,
+                    y: (food2.y + this.nest2.y) / 2 + (Math.random() - 0.5) * 40,
+                    radius: 20,
+                    color: '#888888'
+                };
+                
+                this.obstacles.push(obstacle1, obstacle2);
+            }
+            
+            showDistanceInfo(dist1, dist2) {
+                const distanceInfo = document.getElementById('distanceInfo');
+                const distanceDetails = document.getElementById('distanceDetails');
+                
+                distanceDetails.innerHTML = `
+                    <div class="distance-info">Food 1 (Red) to Nest 1 (Orange): ${dist1.toFixed(1)}px</div>
+                    <div class="distance-info">Food 2 (Green) to Nest 2 (Green): ${dist2.toFixed(1)}px</div>
+                    <div class="distance-info">Difference: ${Math.abs(dist1 - dist2).toFixed(1)}px</div>
+                `;
+                
+                distanceInfo.style.display = 'block';
+            }
+            
+            updateStepInfo() {
+                const stepInfo = document.getElementById('stepInfo');
+                
+                if (this.currentStep === 1) {
+                    stepInfo.innerHTML = `
+                        <h3>Step 1: Nests Placed</h3>
+                        <p>Orange nest (Colony 1) and Green nest (Colony 2) have been placed on opposite sides.</p>
+                        <p>Click "Next Step" to place the first pair of food sources.</p>
+                    `;
+                } else if (this.currentStep === 2) {
+                    stepInfo.innerHTML = `
+                        <h3>Step 2: Food Pair ${this.currentPair + 1}/4</h3>
+                        <p>Red apple (for Colony 1) and Green apple (for Colony 2) have been placed.</p>
+                        <p>Check the distances above. Click "Approve" if distances are fair, or "Reject" to give feedback.</p>
+                    `;
+                } else if (this.currentStep === 3) {
+                    stepInfo.innerHTML = `
+                        <h3>Step 3: Obstacles for Pair ${this.currentPair + 1}/4</h3>
+                        <p>Gray obstacles have been placed between each food source and its respective nest.</p>
+                        <p>Click "Approve" if placement looks good, or "Reject" to give feedback.</p>
+                    `;
+                } else if (this.currentStep === 4) {
+                    stepInfo.innerHTML = `
+                        <h3>Complete!</h3>
+                        <p>All 4 pairs have been placed: 8 food sources and 8 obstacles total.</p>
+                        <p>This creates a perfectly balanced competition between the colonies.</p>
+                    `;
+                    this.disableStepButtons();
+                }
+            }
+            
+            enableStepButtons() {
+                document.getElementById('nextStep').disabled = false;
+                document.getElementById('approve').disabled = false;
+                document.getElementById('reject').disabled = false;
+            }
+            
+            disableStepButtons() {
+                document.getElementById('nextStep').disabled = true;
+                document.getElementById('approve').disabled = true;
+                document.getElementById('reject').disabled = true;
+            }
+            
+            approve() {
+                if (this.currentStep === 2) {
+                    this.nextStep(); // Move to obstacle placement
+                } else if (this.currentStep === 3) {
+                    this.nextStep(); // Move to next pair
+                }
+            }
+            
+            reject() {
+                const feedback = prompt("Please explain what's wrong with the current placement:");
+                if (feedback) {
+                    alert(`Feedback received: "${feedback}"\n\nThis will be used to improve the placement algorithm.`);
+                }
+            }
+            
+            draw() {
+                this.ctx.fillStyle = '#202020';
+                this.ctx.fillRect(0, 0, this.width, this.height);
+                
+                // Draw nests
+                if (this.nest1) {
+                    this.drawCircle(this.nest1.x, this.nest1.y, this.nest1.radius, this.nest1.color);
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.fillText('Nest 1', this.nest1.x - 20, this.nest1.y + 5);
+                }
+                
+                if (this.nest2) {
+                    this.drawCircle(this.nest2.x, this.nest2.y, this.nest2.radius, this.nest2.color);
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '12px Arial';
+                    this.ctx.fillText('Nest 2', this.nest2.x - 20, this.nest2.y + 5);
+                }
+                
+                // Draw food sources
+                this.foodSources.forEach((food, index) => {
+                    this.drawCircle(food.x, food.y, food.radius, food.color);
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '10px Arial';
+                    this.ctx.fillText(`F${index + 1}`, food.x - 8, food.y + 3);
+                });
+                
+                // Draw obstacles
+                this.obstacles.forEach((obstacle, index) => {
+                    this.drawCircle(obstacle.x, obstacle.y, obstacle.radius, obstacle.color);
+                    this.ctx.fillStyle = 'white';
+                    this.ctx.font = '10px Arial';
+                    this.ctx.fillText(`O${index + 1}`, obstacle.x - 8, obstacle.y + 3);
+                });
+                
+                // Draw lines connecting food to nests (for visualization)
+                this.foodSources.forEach((food, index) => {
+                    const nest = index % 2 === 0 ? this.nest1 : this.nest2;
+                    this.ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+                    this.ctx.lineWidth = 1;
+                    this.ctx.beginPath();
+                    this.ctx.moveTo(food.x, food.y);
+                    this.ctx.lineTo(nest.x, nest.y);
+                    this.ctx.stroke();
+                });
+            }
+            
+            drawCircle(x, y, radius, color) {
+                this.ctx.fillStyle = color;
+                this.ctx.beginPath();
+                this.ctx.arc(x, y, radius, 0, Math.PI * 2);
+                this.ctx.fill();
+                
+                this.ctx.strokeStyle = 'white';
+                this.ctx.lineWidth = 2;
+                this.ctx.stroke();
+            }
+        }
+        
+        // Initialize test when page loads
+        document.addEventListener('DOMContentLoaded', () => {
+            const canvas = document.getElementById('testCanvas');
+            const test = new TestPlacement(canvas);
+        });
+    </script>
+</body>
+</html>

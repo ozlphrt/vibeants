@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Foraging Simulation</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #202020;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #simulationCanvas {
+            display: block;
+            background: #202020;
+        }
+        
+        #colorPanel {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            z-index: 1000;
+            transition: transform 0.3s ease-in-out;
+        }
+        
+        #colorPanel.hidden {
+            transform: translateX(100%);
+        }
+        
+        #colorPanel:hover {
+            transform: translateX(0);
+        }
+        
+        .colorGrid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+        
+        .colorCircle {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            border: 2px solid #fff;
+            cursor: pointer;
+            transition: transform 0.2s;
+        }
+        
+        .colorCircle:hover {
+            transform: scale(1.1);
+        }
+        
+        .labels {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 10px;
+            font-size: 10px;
+            text-align: center;
+            margin-bottom: 5px;
+        }
+        
+
+        
+        .defaultButton {
+            background: #ffa500;
+            color: black;
+            border: none;
+            padding: 8px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 11px;
+            margin-top: 10px;
+            width: 100%;
+        }
+        
+        .defaultButton:hover {
+            background: #ff8c00;
+        }
+        
+        #hoverZone {
+            position: fixed;
+            bottom: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            z-index: 999;
+        }
+    </style>
+</head>
+<body>
+    <div id="colorPanel">
+        <div class="labels">
+            <div>Nest</div>
+            <div>Ants</div>
+            <div>Returning</div>
+            <div>Scouting</div>
+        </div>
+        <div class="colorGrid">
+            <div class="colorCircle" id="nestColor" style="background-color: #a67c52;"></div>
+            <div class="colorCircle" id="antColor" style="background-color: #a67c52;"></div>
+            <div class="colorCircle" id="returningTrailColor" style="background-color: #ff8c00;"></div>
+            <div class="colorCircle" id="scoutingTrailColor" style="background-color: #404040;"></div>
+        </div>
+        
+        <button class="defaultButton" id="setDefault">Set as Default</button>
+        
+        <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.2);">
+            <div style="font-size: 12px; margin-bottom: 8px; color: #ccc;">Obstacles:</div>
+            <input type="number" id="obstacleCount" value="35" min="1" max="100" style="width: 60px; padding: 4px; border: 1px solid #666; border-radius: 4px; background: #333; color: white; font-size: 12px;">
+            <button id="applyObstacles" style="margin-left: 8px; padding: 4px 8px; background: #ffa500; color: black; border: none; border-radius: 4px; cursor: pointer; font-size: 11px;">Apply</button>
+        </div>
+    </div>
+    
+    <div id="hoverZone"></div>
+    <canvas id="simulationCanvas"></canvas>
+    <script src="simulation.js"></script>
+</body>
+</html>
+
