@@ -1,0 +1,5 @@
+[33ma444ff4[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m Apply stronger Gaussian blur (5x5 kernel) and post-processing blur (1.5px) to eliminate pixelation in pheromone trails
+[33mc34d85f[m Add anti-aliasing and visual improvements to pheromone trails - Gaussian smoothing, glow effects, and high-quality rendering
+[33m201ac32[m Remove aging/dying mechanics - ants are now immortal with no energy loss
+[33mfe42a07[m Add pause functionality, obstacle dragging, and save/load scenery features
+[33m29702b5[m Initial commit: Ant colony simulation project

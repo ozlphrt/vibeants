@@ -1223,7 +1223,7 @@ class Obstacle {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.lineWidth = 2;
         } else {
-            ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
+        ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
         }
         
         ctx.beginPath();
@@ -1981,7 +1981,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         const mousePos = new Vec(x, y);
-
+        
         // Check if click is on reset button (under timer)
         if (x >= canvas.width - 80 && x <= canvas.width - 20 && y >= 55 && y <= 80) {
             simulation.softReset();

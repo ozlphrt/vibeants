@@ -1265,7 +1265,7 @@ class Obstacle {
             ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
             ctx.lineWidth = 2;
         } else {
-            ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
+        ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
         }
         
         ctx.beginPath();
@@ -2098,11 +2098,11 @@ document.addEventListener('DOMContentLoaded', () => {
             });
             
             canvas.addEventListener('mousemove', (e) => {
-                const rect = canvas.getBoundingClientRect();
-                const mouseX = e.clientX - rect.left;
-                const mouseY = e.clientY - rect.top;
+                    const rect = canvas.getBoundingClientRect();
+                    const mouseX = e.clientX - rect.left;
+                    const mouseY = e.clientY - rect.top;
                 const mousePos = new Vec(mouseX, mouseY);
-                
+                    
                 if (isDragging && draggedFood) {
                     // Update food position
                     draggedFood.pos.x = mouseX - dragOffset.x;

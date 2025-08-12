@@ -221,12 +221,12 @@ class AntForagingSimulation {
         
         // Color customization - load from localStorage or use defaults
         const savedColors = loadDefaultColors();
-        this.nestColor = savedColors.nestColor || '#a67c52';
-        this.antColor = savedColors.antColor || '#a67c52';
+        this.nestColor = savedColors.nestColor || '#0c7e28';  // Nest: R12, G126, B40
+        this.antColor = savedColors.antColor || '#bd0f0f';    // Ant: R189, G15, B15
         
         // Signal strength colors
-        this.minSignal = savedColors.minSignal || '#8b6b47';
-        this.maxSignal = savedColors.maxSignal || '#ff8c00';
+        this.minSignal = savedColors.minSignal || '#394431';  // Scouting: R57, G68, B49
+        this.maxSignal = savedColors.maxSignal || '#923a3a';  // Returning: R146, G58, B58
         
         // Helper method to get direct path between two points
         this.getDirectPath = (from, to) => {
