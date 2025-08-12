@@ -449,8 +449,6 @@ class AntForagingSimulation {
         // Reset simulation state
         this.frameCount = 0;
         this.lastSpawnTime = 0;
-        this.deadAntCount = 0;
-        this.queenEggsLaid = 0;
         this.startTime = performance.now();
         
         // Create new ants around the existing nest
@@ -763,11 +761,10 @@ class AntForagingSimulation {
             return;
         }
         
-        // Update all ants and remove dead ones
-        this.ants = this.ants.filter(ant => {
+        // Update all ants (immortal ants)
+        for (const ant of this.ants) {
             ant.update();
-            return ant.isAlive; // Keep only alive ants
-        });
+        }
         
         // Spawn new ants to maintain population
         this.spawnNewAnts();
@@ -932,9 +929,8 @@ class AntForagingSimulation {
             const angle = Math.atan2(dir.y, dir.x);
             this.ctx.rotate(angle);
             
-            // Size varies with age - older ants are slightly larger
-            const ageFactor = Math.min(1.5, 1 + (ant.age / ant.lifespan) * 0.5);
-            const size = 5 * ageFactor;
+                    // Fixed size for immortal ants
+        const size = 5;
             
             this.ctx.beginPath();
             this.ctx.moveTo(size, 0);
@@ -943,24 +939,9 @@ class AntForagingSimulation {
             this.ctx.closePath();
             
             // Color based on food status and energy level
-            let baseColor = ant.hasFood ? this.antColor : this.nestColor; // Customizable ant colors
-            
-            // Darken color progressively as energy decreases
-            const energyPercent = ant.energy / 100;
-            const darkenFactor = Math.max(0.2, energyPercent); // Minimum 20% brightness
-            
-            // Apply darkening effect
-            const r = parseInt(baseColor.slice(1, 3), 16);
-            const g = parseInt(baseColor.slice(3, 5), 16);
-            const b = parseInt(baseColor.slice(5, 7), 16);
-            
-            const darkenedR = Math.floor(r * darkenFactor);
-            const darkenedG = Math.floor(g * darkenFactor);
-            const darkenedB = Math.floor(b * darkenFactor);
-            
-            const darkenedColor = `rgb(${darkenedR}, ${darkenedG}, ${darkenedB})`;
-            
-            this.ctx.fillStyle = darkenedColor;
+            // Color based on food status only
+            const baseColor = ant.hasFood ? this.antColor : this.nestColor; // Customizable ant colors
+            this.ctx.fillStyle = baseColor;
             this.ctx.fill();
             this.ctx.strokeStyle = '#222';
             this.ctx.lineWidth = 1;
@@ -1051,9 +1032,7 @@ class AntForagingSimulation {
         
         // Stats display
         this.ctx.fillText(`Colony: ${this.ants.length}`, 10, 25);
-        this.ctx.fillText(`Dead: ${this.deadAntCount}`, 10, 45);
-        this.ctx.fillText(`Eggs: ${this.queenEggsLaid}`, 10, 65);
-        this.ctx.fillText(`Food: ${this.nest.foodStored}/${this.nest.maxCapacity}`, 10, 85);
+        this.ctx.fillText(`Food: ${this.nest.foodStored}/${this.nest.maxCapacity}`, 10, 45);
         
         // Instructions at bottom left
         this.ctx.fillStyle = '#ffffff';
@@ -1085,11 +1064,9 @@ class AntForagingSimulation {
             if (nearbyAnts > 3) antsInClusters++;
         }
         
-        // Lifecycle statistics (for internal use only)
+        // Statistics (for internal use only)
         if (this.ants.length > 0) {
-            const avgAge = this.ants.reduce((sum, ant) => sum + ant.age, 0) / this.ants.length;
-            const avgEnergy = this.ants.reduce((sum, ant) => sum + ant.energy, 0) / this.ants.length;
-            // Removed display of avg age and energy
+            // Ants are immortal - no age or energy tracking
         }
         
 
@@ -1317,58 +1294,15 @@ class Ant {
         this.maxSpeed = 3.0;
         this.maxTurnRate = 0.3; // Radians per frame
         
-        // Lifecycle properties
+        // Ant properties (immortal ants)
         this.birthTime = performance.now();
-        this.age = 0; // Age in milliseconds
-        this.lifespan = 300000 + (Math.random() - 0.5) * 120000; // 5 minutes ± 1 minute randomly
-        this.isAlive = true;
-        this.energy = 100; // Energy level (0-100)
-        this.energyDecayRate = 0.02; // Much slower energy decay - changes visible after 4 minutes
-        
-        // Death properties
-        this.deathTime = null;
-        this.graveEffect = null;
         
 
     }
     
     update() {
-        // Lifecycle update - check if ant is still alive
-        this.age = performance.now() - this.birthTime;
-        this.energy -= this.energyDecayRate;
-        
-        // Die from old age or exhaustion
-        if (this.age > this.lifespan || this.energy <= 0) {
-            if (this.isAlive) {
-                this.isAlive = false;
-                this.deathTime = performance.now();
-                this.graveEffect = {
-                    startTime: performance.now(),
-                    duration: 10000, // 10 seconds
-                    alpha: 1.0
-                };
-                // Increment dead ant counter
-                this.simulation.deadAntCount++;
-                console.log(`Ant died at age ${(this.age / 1000).toFixed(1)}s. Total dead: ${this.simulation.deadAntCount}`);
-            }
-            return; // Stop updating dead ants
-        }
-        
-        // Update grave effect
-        if (this.graveEffect) {
-            const elapsed = performance.now() - this.graveEffect.startTime;
-            const progress = elapsed / this.graveEffect.duration;
-            
-            if (progress >= 1) {
-                this.graveEffect = null; // Remove effect when done
-            } else {
-                this.graveEffect.alpha = 1.0 - progress;
-            }
-        }
-        
-        // Slow down when energy is low
-        const energyFactor = Math.max(0.3, this.energy / 100);
-        this.maxSpeed = 3.0 * energyFactor;
+        // Immortal ants - no aging or energy mechanics
+        this.maxSpeed = 3.0; // Constant speed
         
         let direction = new Vec(0, 0);
         
@@ -1604,8 +1538,7 @@ class Ant {
                 this.lastFoodTime = performance.now();
                 this.targetFood = nearestFood;
                 
-                // Full energy restoration from finding food
-                this.energy = 100; // Complete energy restoration
+                            // Food found (no energy mechanics)
                 
                 // Set gentle momentum toward nest for natural return
                 const nestDir = new Vec(this.simulation.nest.x, this.simulation.nest.y).subtract(this.position).normalize();
@@ -1620,7 +1553,7 @@ class Ant {
                 // Clear path for return journey
                 this.path = [];
                 
-                console.log(`Food found! Energy restored to 100%`);
+                console.log(`Food found!`);
             }
         } else {
             // Enhanced food delivery at nest
@@ -1672,8 +1605,7 @@ class Ant {
                     field.reinforcePath(this.path, reinforcementStrength);
                 }
                 
-                // Full energy restoration from successful food delivery
-                this.energy = 100; // Complete energy restoration
+                            // Food delivered successfully (no energy mechanics)
                 
                 // Clear state for clean transition to exploring
                 this.path = [];
@@ -1681,7 +1613,7 @@ class Ant {
                 this.tripStartTime = performance.now();
                 
                 // Log successful delivery
-                console.log(`Ant delivered food! Efficiency: ${overallEfficiency.toFixed(2)}, Food gained: ${foodGained}, Energy restored to 100%`);
+                console.log(`Ant delivered food! Efficiency: ${overallEfficiency.toFixed(2)}, Food gained: ${foodGained}`);
             }
         }
     }
