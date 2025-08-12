@@ -910,23 +910,29 @@ class AntForagingSimulation {
             }
         }
         
-        // Draw the smoothed pheromones to the main canvas
+        // Apply additional blur filter to the entire pheromone layer
+        this.ctx.filter = 'blur(1.5px)'; // Increased blur for smoother trails
         this.ctx.drawImage(tempCanvas, 0, 0);
+        this.ctx.filter = 'none';
     }
     
-    // Apply Gaussian smoothing to reduce aliasing
+    // Apply strong Gaussian blur to eliminate pixelation
     applyGaussianSmoothing(x, y, type, baseAlpha) {
+        // Larger 5x5 Gaussian kernel for stronger blur
         const kernel = [
-            [0.0625, 0.125, 0.0625],
-            [0.125,  0.25,  0.125],
-            [0.0625, 0.125, 0.0625]
+            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765],
+            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
+            [0.023792, 0.094907, 0.150342, 0.094907, 0.023792],
+            [0.015019, 0.059912, 0.094907, 0.059912, 0.015019],
+            [0.003765, 0.015019, 0.023792, 0.015019, 0.003765]
         ];
         
         let smoothedAlpha = 0;
         let totalWeight = 0;
         
-        for (let dx = -1; dx <= 1; dx++) {
-            for (let dy = -1; dy <= 1; dy++) {
+        // Apply 5x5 blur
+        for (let dx = -2; dx <= 2; dx++) {
+            for (let dy = -2; dy <= 2; dy++) {
                 const nx = x + dx;
                 const ny = y + dy;
                 
@@ -947,15 +953,15 @@ class AntForagingSimulation {
                         }
                     }
                     
-                    const weight = kernel[dx + 1][dy + 1];
+                    const weight = kernel[dx + 2][dy + 2];
                     smoothedAlpha += neighborAlpha * weight;
                     totalWeight += weight;
                 }
             }
         }
         
-        // Blend with original alpha for better edge preservation
-        const finalAlpha = (smoothedAlpha / totalWeight) * 0.7 + baseAlpha * 0.3;
+        // Strong blur with minimal original preservation for maximum smoothness
+        const finalAlpha = (smoothedAlpha / totalWeight) * 0.9 + baseAlpha * 0.1;
         return Math.max(0, Math.min(1, finalAlpha));
     }
     
