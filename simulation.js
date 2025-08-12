@@ -202,6 +202,10 @@ class AntForagingSimulation {
         this.ctx = canvas.getContext('2d');
         this.width = canvas.width;
         this.height = canvas.height;
+        
+        // Enable high-quality rendering
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'high';
         this.isRunning = false;
         this.isPaused = false; // New: pause state for simulation
         this.needsApproval = true; // New: require approval before starting
@@ -840,7 +844,21 @@ class AntForagingSimulation {
     drawPheromones() {
         const cell = this.pheromoneField.cell;
         
-        // Draw pheromones for single colony - OPTIMIZED: Only draw cells with pheromones
+        // Enable anti-aliasing for smoother rendering
+        this.ctx.imageSmoothingEnabled = true;
+        this.ctx.imageSmoothingQuality = 'high';
+        
+        // Create a temporary canvas for smooth rendering
+        const tempCanvas = document.createElement('canvas');
+        const tempCtx = tempCanvas.getContext('2d');
+        tempCanvas.width = this.width;
+        tempCanvas.height = this.height;
+        
+        // Enable anti-aliasing on temp canvas
+        tempCtx.imageSmoothingEnabled = true;
+        tempCtx.imageSmoothingQuality = 'high';
+        
+        // Draw pheromones for single colony with improved visual quality
         for (let x = 0; x < this.pheromoneField.gridW; x++) {
             for (let y = 0; y < this.pheromoneField.gridH; y++) {
                 const homeStr = this.pheromoneField.home[x][y];
@@ -849,15 +867,19 @@ class AntForagingSimulation {
                 
                 // Only process cells that have actual pheromone values (performance optimization)
                 if (homeStr > 2 || foodStr > 2) {
-                    // Draw home trails (scouting trails for exploring ants)
+                    // Draw home trails (scouting trails for exploring ants) with smoothing
                     if (homeStr > 2) {
                         const alpha = Math.min(0.6, homeStr / 100);
                         const scoutingColor = hexToRgb(this.scoutingTrailColor || '#404040');
-                        this.ctx.fillStyle = `rgba(${scoutingColor.r}, ${scoutingColor.g}, ${scoutingColor.b}, ${alpha})`;
-                        this.ctx.fillRect(x * cell, y * cell, cell, cell);
+                        
+                        // Apply Gaussian smoothing for home trails
+                        const smoothedAlpha = this.applyGaussianSmoothing(x, y, 'home', alpha);
+                        
+                        tempCtx.fillStyle = `rgba(${scoutingColor.r}, ${scoutingColor.g}, ${scoutingColor.b}, ${smoothedAlpha})`;
+                        tempCtx.fillRect(x * cell, y * cell, cell, cell);
                     }
                     
-                    // Draw food trails (returning ants with single color)
+                    // Draw food trails (returning ants with single color) with enhanced visual effects
                     if (foodStr > 2) {
                         const alpha = Math.min(1.0, (foodStr + success) / 80);
                         const strength = Math.min(1.0, (foodStr + success) / 200);
@@ -868,12 +890,73 @@ class AntForagingSimulation {
                         const returningColor = hexToRgb(this.returningTrailColor);
                         const finalAlpha = alpha * mappedStrength;
                         
-                        this.ctx.fillStyle = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${finalAlpha})`;
-                        this.ctx.fillRect(x * cell, y * cell, cell, cell);
+                        // Apply Gaussian smoothing for food trails
+                        const smoothedAlpha = this.applyGaussianSmoothing(x, y, 'food', finalAlpha);
+                        
+                        // Add subtle glow effect for stronger trails
+                        const glowIntensity = Math.min(0.3, smoothedAlpha * 0.5);
+                        if (glowIntensity > 0.05) {
+                            tempCtx.shadowColor = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${glowIntensity})`;
+                            tempCtx.shadowBlur = 2;
+                        }
+                        
+                        tempCtx.fillStyle = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${smoothedAlpha})`;
+                        tempCtx.fillRect(x * cell, y * cell, cell, cell);
+                        
+                        // Reset shadow
+                        tempCtx.shadowBlur = 0;
                     }
                 }
             }
         }
+        
+        // Draw the smoothed pheromones to the main canvas
+        this.ctx.drawImage(tempCanvas, 0, 0);
+    }
+    
+    // Apply Gaussian smoothing to reduce aliasing
+    applyGaussianSmoothing(x, y, type, baseAlpha) {
+        const kernel = [
+            [0.0625, 0.125, 0.0625],
+            [0.125,  0.25,  0.125],
+            [0.0625, 0.125, 0.0625]
+        ];
+        
+        let smoothedAlpha = 0;
+        let totalWeight = 0;
+        
+        for (let dx = -1; dx <= 1; dx++) {
+            for (let dy = -1; dy <= 1; dy++) {
+                const nx = x + dx;
+                const ny = y + dy;
+                
+                if (nx >= 0 && nx < this.pheromoneField.gridW && 
+                    ny >= 0 && ny < this.pheromoneField.gridH) {
+                    
+                    let neighborAlpha = 0;
+                    if (type === 'home') {
+                        const neighborStr = this.pheromoneField.home[nx][ny];
+                        if (neighborStr > 2) {
+                            neighborAlpha = Math.min(0.6, neighborStr / 100);
+                        }
+                    } else if (type === 'food') {
+                        const neighborStr = this.pheromoneField.food[nx][ny];
+                        const neighborSuccess = this.pheromoneField.pathSuccess[nx][ny];
+                        if (neighborStr > 2) {
+                            neighborAlpha = Math.min(1.0, (neighborStr + neighborSuccess) / 80);
+                        }
+                    }
+                    
+                    const weight = kernel[dx + 1][dy + 1];
+                    smoothedAlpha += neighborAlpha * weight;
+                    totalWeight += weight;
+                }
+            }
+        }
+        
+        // Blend with original alpha for better edge preservation
+        const finalAlpha = (smoothedAlpha / totalWeight) * 0.7 + baseAlpha * 0.3;
+        return Math.max(0, Math.min(1, finalAlpha));
     }
     
     drawFoodSources() {
