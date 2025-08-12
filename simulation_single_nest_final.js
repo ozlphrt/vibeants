@@ -183,6 +183,7 @@ class AntForagingSimulation {
         this.width = canvas.width;
         this.height = canvas.height;
         this.isRunning = false;
+        this.isPaused = false; // New: pause state for simulation
         this.needsApproval = true; // New: require approval before starting
         console.log('Canvas context created, dimensions:', this.width, 'x', this.height);
         
@@ -221,12 +222,12 @@ class AntForagingSimulation {
         
         // Color customization - load from localStorage or use defaults
         const savedColors = loadDefaultColors();
-        this.nestColor = savedColors.nestColor || '#a67c52';
-        this.antColor = savedColors.antColor || '#a67c52';
+        this.nestColor = savedColors.nestColor || '#0c7e28';  // Nest: R12, G126, B40
+        this.antColor = savedColors.antColor || '#bd0f0f';    // Ant: R189, G15, B15
         
         // Signal strength colors
-        this.minSignal = savedColors.minSignal || '#8b6b47';
-        this.maxSignal = savedColors.maxSignal || '#ff8c00';
+        this.minSignal = savedColors.minSignal || '#394431';  // Scouting: R57, G68, B49
+        this.maxSignal = savedColors.maxSignal || '#923a3a';  // Returning: R146, G58, B58
         
         // Helper method to get direct path between two points
         this.getDirectPath = (from, to) => {
@@ -429,6 +430,170 @@ class AntForagingSimulation {
         console.log('Simulation started automatically');
     }
     
+    // Soft reset - preserves nest, obstacles, and food positions but resets simulation state
+    softReset() {
+        console.log('Performing soft reset - preserving environment layout...');
+        
+        // Reset pheromone field
+        this.pheromoneField = new PheromoneField(this.width, this.height, 6);
+        
+        // Reset nest state (keep position)
+        this.nest.foodStored = 0;
+        this.nest.isFull = false;
+        
+        // Reset food sources (keep positions, restore amounts)
+        for (const food of this.foodSources) {
+            food.amount = food.originalAmount;
+        }
+        
+        // Reset simulation state
+        this.frameCount = 0;
+        this.lastSpawnTime = 0;
+        this.deadAntCount = 0;
+        this.queenEggsLaid = 0;
+        this.startTime = performance.now();
+        
+        // Create new ants around the existing nest
+        this.ants = [];
+        for (let i = 0; i < this.antCount; i++) {
+            // Create ants in a wider area around the nest
+            const angle = (i / this.antCount) * Math.PI * 2 + Math.random() * 0.5;
+            const distance = 15 + Math.random() * 10;
+            const x = this.nest.x + Math.cos(angle) * distance;
+            const y = this.nest.y + Math.sin(angle) * distance;
+            
+            const ant = new Ant(x, y, this);
+            this.ants.push(ant);
+        }
+        
+        console.log(`Soft reset complete - ${this.ants.length} new ants created around existing nest`);
+    }
+    
+    // Save scenery - exports nest, obstacles, and food positions to a file
+    saveScenery() {
+        const sceneryData = {
+            version: '1.0',
+            timestamp: new Date().toISOString(),
+            canvas: {
+                width: this.width,
+                height: this.height
+            },
+            nest: {
+                x: this.nest.x,
+                y: this.nest.y,
+                radius: this.nest.radius
+            },
+            obstacles: this.obstacles.map(obstacle => ({
+                x: obstacle.pos.x,
+                y: obstacle.pos.y,
+                baseRadius: obstacle.baseRadius
+            })),
+            foodSources: this.foodSources.map(food => ({
+                x: food.pos.x,
+                y: food.pos.y,
+                radius: food.radius,
+                originalAmount: food.originalAmount
+            }))
+        };
+        
+        // Create and download the file
+        const dataStr = JSON.stringify(sceneryData, null, 2);
+        const dataBlob = new Blob([dataStr], { type: 'application/json' });
+        
+        // Prompt for filename
+        const filename = prompt('Enter filename for scenery (without extension):', 'my_scenery');
+        if (!filename) return; // User cancelled
+        
+        const fullFilename = filename.endsWith('.json') ? filename : `${filename}.json`;
+        
+        // Create download link
+        const downloadLink = document.createElement('a');
+        downloadLink.href = URL.createObjectURL(dataBlob);
+        downloadLink.download = fullFilename;
+        downloadLink.style.display = 'none';
+        
+        document.body.appendChild(downloadLink);
+        downloadLink.click();
+        document.body.removeChild(downloadLink);
+        
+        console.log(`Scenery saved as: ${fullFilename}`);
+        alert(`Scenery saved successfully as: ${fullFilename}`);
+    }
+    
+    // Load scenery - imports nest, obstacles, and food positions from a file
+    loadScenery() {
+        // Create file input element
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                try {
+                    const sceneryData = JSON.parse(e.target.result);
+                    
+                    // Validate the data structure
+                    if (!sceneryData.nest || !sceneryData.obstacles || !sceneryData.foodSources) {
+                        throw new Error('Invalid scenery file format');
+                    }
+                    
+                    // Load nest position
+                    this.nest.x = sceneryData.nest.x;
+                    this.nest.y = sceneryData.nest.y;
+                    this.nest.radius = sceneryData.nest.radius || 40;
+                    
+                    // Load obstacles
+                    this.obstacles = [];
+                    for (const obstacleData of sceneryData.obstacles) {
+                        const obstacle = new Obstacle(obstacleData.x, obstacleData.y);
+                        obstacle.baseRadius = obstacleData.baseRadius;
+                        obstacle.blob = makeBlob(obstacle.pos.x, obstacle.pos.y, obstacle.baseRadius, 0.2, 18);
+                        this.obstacles.push(obstacle);
+                    }
+                    
+                    // Load food sources
+                    this.foodSources = [];
+                    for (const foodData of sceneryData.foodSources) {
+                        const food = new Food(foodData.x, foodData.y);
+                        food.radius = foodData.radius;
+                        food.originalAmount = foodData.originalAmount;
+                        food.amount = food.originalAmount;
+                        this.foodSources.push(food);
+                    }
+                    
+                    // Recalculate nest capacity
+                    let totalFoodAvailable = 0;
+                    for (const food of this.foodSources) {
+                        totalFoodAvailable += food.originalAmount;
+                    }
+                    this.nest.maxCapacity = totalFoodAvailable;
+                    
+                    // Reset simulation state
+                    this.softReset();
+                    
+                    console.log(`Scenery loaded from: ${file.name}`);
+                    alert(`Scenery loaded successfully from: ${file.name}\nObstacles: ${this.obstacles.length}\nFood sources: ${this.foodSources.length}`);
+                    
+                } catch (error) {
+                    console.error('Error loading scenery:', error);
+                    alert('Error loading scenery file. Please check the file format.');
+                }
+            };
+            
+            reader.readAsText(file);
+        });
+        
+        // Trigger file selection
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    }
+    
 
     
 
@@ -593,6 +758,11 @@ class AntForagingSimulation {
     update() {
         this.frameCount++;
         
+        // Skip simulation updates if paused
+        if (this.isPaused) {
+            return;
+        }
+        
         // Update all ants and remove dead ones
         this.ants = this.ants.filter(ant => {
             ant.update();
@@ -635,6 +805,11 @@ class AntForagingSimulation {
         
         // Draw debug info
         this.drawDebugInfo();
+        
+        // Draw pause indicator
+        if (this.isPaused) {
+            this.drawPauseIndicator();
+        }
     }
     
 
@@ -853,6 +1028,22 @@ class AntForagingSimulation {
         this.ctx.textAlign = 'center';
         this.ctx.fillText('RESET', this.width - 50, 72);
         
+        // Draw save scenery button
+        this.ctx.fillStyle = '#ffa500';
+        this.ctx.fillRect(this.width - 80, 85, 60, 25);
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = 'bold 12px Arial, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('SAVE', this.width - 50, 102);
+        
+        // Draw load scenery button
+        this.ctx.fillStyle = '#ffa500';
+        this.ctx.fillRect(this.width - 80, 115, 60, 25);
+        this.ctx.fillStyle = '#000000';
+        this.ctx.font = 'bold 12px Arial, sans-serif';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('LOAD', this.width - 50, 132);
+        
         // Draw stats
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = 'bold 14px Arial, sans-serif';
@@ -867,7 +1058,7 @@ class AntForagingSimulation {
         // Instructions at bottom left
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = 'bold 12px Arial, sans-serif';
-        this.ctx.fillText('Controls: R=Reset', 10, this.height - 20);
+        this.ctx.fillText('Controls: R=Reset, P=Pause', 10, this.height - 20);
         // if (this.ants.length > 0) {
         //     this.ctx.fillStyle = '#ffd700'; // Gold color for debug info
         //     this.ctx.font = 'bold 12px Arial, sans-serif';
@@ -904,6 +1095,24 @@ class AntForagingSimulation {
 
     }
     
+    drawPauseIndicator() {
+        // Draw semi-transparent overlay
+        this.ctx.fillStyle = 'rgba(0, 0, 0, 0.5)';
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Draw pause text
+        this.ctx.fillStyle = '#ffffff';
+        this.ctx.font = 'bold 48px Arial';
+        this.ctx.textAlign = 'center';
+        this.ctx.fillText('PAUSED', this.width / 2, this.height / 2 - 50);
+        
+        // Draw instruction text
+        this.ctx.font = '24px Arial';
+        this.ctx.fillText('Press P to resume', this.width / 2, this.height / 2 + 10);
+        this.ctx.font = '18px Arial';
+        this.ctx.fillText('You can still drag apples and obstacles', this.width / 2, this.height / 2 + 40);
+    }
+    
     start() {
         console.log('Starting ant foraging simulation...');
         console.log('Ants array length:', this.ants ? this.ants.length : 'undefined');
@@ -930,6 +1139,7 @@ class Obstacle {
         this.pos = new Vec(x, y);
         this.baseRadius = 30 + Math.random() * 30;
         this.blob = makeBlob(x, y, this.baseRadius, 0.2, 18);
+        this.isBeingDragged = false;
     }
     
     randomize(w, h) {
@@ -940,7 +1150,16 @@ class Obstacle {
     
     draw(ctx) {
         ctx.save();
-        ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
+        
+        // Different appearance when being dragged
+        if (this.isBeingDragged) {
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.95)';
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.8)';
+            ctx.lineWidth = 2;
+        } else {
+            ctx.fillStyle = 'rgba(50, 50, 50, 0.95)';
+        }
+        
         ctx.beginPath();
         const pts = this.blob;
         if (pts.length) {
@@ -956,6 +1175,11 @@ class Obstacle {
             }
             ctx.closePath();
             ctx.fill();
+            
+            // Draw border when being dragged
+            if (this.isBeingDragged) {
+                ctx.stroke();
+            }
         }
         ctx.restore();
     }
@@ -1576,11 +1800,16 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add keyboard controls
     window.addEventListener('keydown', (e) => {
         if (e.key === 'r' || e.key === 'R') {
-            simulation.initialize();
+            simulation.softReset();
         }
         if (e.key === 'a' || e.key === 'A') {
             // Add more ants
             simulation.antCount += 10;
+        }
+        if (e.key === 'p' || e.key === 'P') {
+            // Toggle pause state
+            simulation.isPaused = !simulation.isPaused;
+            console.log('Simulation paused:', simulation.isPaused);
         }
 
         simulation.updateAntCount();
@@ -1720,18 +1949,108 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize auto-hide
     setupAutoHide();
     
-    // Add click detection for reset button and approval buttons
-    canvas.addEventListener('click', (e) => {
+    // Obstacle dragging functionality
+    let isDragging = false;
+    let draggedObstacle = null;
+    let dragOffset = new Vec(0, 0);
+
+    // Mouse down event for obstacle dragging
+    canvas.addEventListener('mousedown', (e) => {
         const rect = canvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
+        const mousePos = new Vec(x, y);
 
-        
         // Check if click is on reset button (under timer)
         if (x >= canvas.width - 80 && x <= canvas.width - 20 && y >= 55 && y <= 80) {
-            simulation.initialize();
-            console.log('Reset button clicked - simulation restarted');
+            simulation.softReset();
+            console.log('Reset button clicked - simulation restarted with preserved layout');
+            return;
+        }
+        
+        // Check if click is on save scenery button
+        if (x >= canvas.width - 80 && x <= canvas.width - 20 && y >= 85 && y <= 110) {
+            simulation.saveScenery();
+            return;
+        }
+        
+        // Check if click is on load scenery button
+        if (x >= canvas.width - 80 && x <= canvas.width - 20 && y >= 115 && y <= 140) {
+            simulation.loadScenery();
+            return;
+        }
+
+        // Check if clicking on an obstacle
+        for (const obstacle of simulation.obstacles) {
+            const distance = mousePos.subtract(obstacle.pos).magnitude();
+            if (distance <= obstacle.baseRadius) {
+                isDragging = true;
+                draggedObstacle = obstacle;
+                draggedObstacle.isBeingDragged = true;
+                dragOffset = mousePos.subtract(obstacle.pos);
+                canvas.style.cursor = 'grabbing';
+                e.preventDefault();
+                break;
+            }
+        }
+    });
+
+    // Mouse move event for obstacle dragging and cursor feedback
+    canvas.addEventListener('mousemove', (e) => {
+        const rect = canvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const mousePos = new Vec(x, y);
+
+        if (isDragging && draggedObstacle) {
+            // Update obstacle position
+            draggedObstacle.pos = mousePos.subtract(dragOffset);
+            
+            // Regenerate blob at new position
+            draggedObstacle.blob = makeBlob(draggedObstacle.pos.x, draggedObstacle.pos.y, 
+                                          draggedObstacle.baseRadius, 0.2, 18);
+            
+            e.preventDefault();
+        } else {
+            // Check if hovering over an obstacle for cursor feedback
+            let hoveringOverObstacle = false;
+            for (const obstacle of simulation.obstacles) {
+                const distance = mousePos.subtract(obstacle.pos).magnitude();
+                if (distance <= obstacle.baseRadius) {
+                    hoveringOverObstacle = true;
+                    break;
+                }
+            }
+
+            // Update cursor
+            if (hoveringOverObstacle) {
+                canvas.style.cursor = 'grab';
+            } else {
+                canvas.style.cursor = 'default';
+            }
+        }
+    });
+
+    // Mouse up event to stop dragging
+    canvas.addEventListener('mouseup', (e) => {
+        if (isDragging && draggedObstacle) {
+            draggedObstacle.isBeingDragged = false;
+            isDragging = false;
+            draggedObstacle = null;
+            canvas.style.cursor = 'default';
+            e.preventDefault();
+        }
+    });
+
+    // Mouse leave event to stop dragging if mouse leaves canvas
+    canvas.addEventListener('mouseleave', (e) => {
+        if (isDragging && draggedObstacle) {
+            draggedObstacle.isBeingDragged = false;
+            isDragging = false;
+            draggedObstacle = null;
+            canvas.style.cursor = 'default';
+        } else {
+            canvas.style.cursor = 'default';
         }
     });
 });
