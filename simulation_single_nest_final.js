@@ -188,7 +188,20 @@ class AntForagingSimulation {
         this.ctx.imageSmoothingQuality = 'high';
         
         // Initialize WebGL renderer for pheromone rendering
-        this.webglRenderer = new WebGLRenderer(canvas);
+        // Create a separate WebGL canvas to avoid conflicts with 2D context
+        this.webglCanvas = document.createElement('canvas');
+        this.webglCanvas.width = this.width;
+        this.webglCanvas.height = this.height;
+        this.webglCanvas.style.position = 'absolute';
+        this.webglCanvas.style.top = '0';
+        this.webglCanvas.style.left = '0';
+        this.webglCanvas.style.pointerEvents = 'none';
+        this.webglCanvas.style.zIndex = '1';
+        
+        // Insert WebGL canvas before the main canvas
+        canvas.parentNode.insertBefore(this.webglCanvas, canvas);
+        
+        this.webglRenderer = new WebGLRenderer(this.webglCanvas);
         this.useWebGL = this.webglRenderer.supported;
         console.log('WebGL support:', this.useWebGL ? 'Enabled' : 'Disabled');
         
@@ -839,7 +852,7 @@ class AntForagingSimulation {
         this.ctx.fillStyle = '#202020';
         this.ctx.fillRect(0, 0, this.width, this.height);
         
-        // Draw pheromone trails
+        // Draw pheromone trails (WebGL or CPU)
         this.drawPheromones();
         
         // Draw obstacles
@@ -873,7 +886,7 @@ class AntForagingSimulation {
 
     
     drawPheromones() {
-        if (this.useWebGL) {
+        if (this.useWebGL && this.webglRenderer) {
             // WebGL rendering - much faster!
             this.webglRenderer.updatePheromoneTexture(this.pheromoneField);
             
@@ -2200,13 +2213,36 @@ document.addEventListener('DOMContentLoaded', () => {
 class WebGLRenderer {
     constructor(canvas) {
         this.canvas = canvas;
-        this.gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        
+        // Try to get WebGL context with proper attributes
+        const webglAttributes = {
+            alpha: false,
+            depth: false,
+            stencil: false,
+            antialias: false,
+            premultipliedAlpha: false,
+            preserveDrawingBuffer: false,
+            powerPreference: 'default',
+            failIfMajorPerformanceCaveat: false
+        };
+        
+        this.gl = canvas.getContext('webgl2', webglAttributes) || 
+                  canvas.getContext('webgl', webglAttributes) || 
+                  canvas.getContext('experimental-webgl', webglAttributes);
         
         if (!this.gl) {
             console.warn('WebGL not supported, falling back to CPU rendering');
             this.supported = false;
             return;
         }
+        
+        // Test WebGL capabilities
+        const maxTextureSize = this.gl.getParameter(this.gl.MAX_TEXTURE_SIZE);
+        const maxViewportDims = this.gl.getParameter(this.gl.MAX_VIEWPORT_DIMS);
+        
+        console.log('WebGL initialized successfully');
+        console.log('Max texture size:', maxTextureSize);
+        console.log('Max viewport dimensions:', maxViewportDims);
         
         this.supported = true;
         this.initShaders();
