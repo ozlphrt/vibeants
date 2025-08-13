@@ -341,8 +341,11 @@ class AntForagingSimulation {
     }
     
     initialize() {
+        console.log('Initializing simulation with dimensions:', this.width, 'x', this.height);
+        
         // Initialize pheromone field
         this.pheromoneField = new PheromoneField(this.width, this.height, 6);
+        console.log('Pheromone field initialized');
         
         // Place single nest randomly on left or right side
         const nestMargin = 100;
@@ -439,6 +442,14 @@ class AntForagingSimulation {
             this.ants.push(ant);
         }
         console.log(`Created ${this.ants.length} ants around nest position (${this.nest.x}, ${this.nest.y})`);
+        console.log('Simulation initialization complete!');
+        console.log('Summary:', {
+            ants: this.ants.length,
+            foodSources: this.foodSources.length,
+            obstacles: this.obstacles.length,
+            nestPosition: { x: this.nest.x, y: this.nest.y },
+            nestCapacity: this.nest.maxCapacity
+        });
         
         // Give ants varied initial directions
         for (let i = 0; i < this.ants.length; i++) {
@@ -1313,6 +1324,18 @@ class AntForagingSimulation {
             console.log(`Initial ant positions:`, this.ants.map(ant => ({x: ant.position.x, y: ant.position.y})));
         }
         
+        if (!this.ants || this.ants.length === 0) {
+            console.error('No ants created! Cannot start simulation.');
+            return;
+        }
+        
+        if (!this.foodSources || this.foodSources.length === 0) {
+            console.error('No food sources created! Cannot start simulation.');
+            return;
+        }
+        
+        console.log('Simulation starting successfully...');
+        
         const animate = () => {
             try {
                 this.update();
@@ -1944,6 +1967,12 @@ document.addEventListener('DOMContentLoaded', () => {
     console.log('Creating simulation...');
     const simulation = new AntForagingSimulation(canvas);
     console.log('Simulation created successfully');
+    
+    // Initialize and start the simulation
+    console.log('Initializing simulation...');
+    simulation.initialize();
+    console.log('Starting simulation...');
+    simulation.start();
     
     // Add keyboard controls
     window.addEventListener('keydown', (e) => {
