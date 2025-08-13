@@ -206,6 +206,12 @@ class AntForagingSimulation {
         // Enable high-quality rendering
         this.ctx.imageSmoothingEnabled = true;
         this.ctx.imageSmoothingQuality = 'high';
+        
+        // Initialize WebGL renderer for pheromone rendering
+        this.webglRenderer = new WebGLRenderer(canvas);
+        this.useWebGL = this.webglRenderer.supported;
+        console.log('WebGL support:', this.useWebGL ? 'Enabled' : 'Disabled');
+        
         this.isRunning = false;
         this.isPaused = false; // New: pause state for simulation
         this.needsApproval = true; // New: require approval before starting
@@ -888,6 +894,29 @@ class AntForagingSimulation {
 
     
     drawPheromones() {
+        if (this.useWebGL) {
+            // WebGL rendering - much faster!
+            this.webglRenderer.updatePheromoneTexture(this.pheromoneField);
+            
+            const homeColor = hexToRgb(this.scoutingTrailColor || '#404040');
+            const foodColor = hexToRgb(this.returningTrailColor);
+            
+            // Use blur in normal mode, disable in performance mode
+            const blurStrength = this.performanceMode ? 0.0 : 2.0;
+            
+            const success = this.webglRenderer.renderPheromones(homeColor, foodColor, blurStrength);
+            
+            if (!success) {
+                // Fallback to CPU rendering if WebGL fails
+                this.drawPheromonesCPU();
+            }
+        } else {
+            // CPU rendering fallback
+            this.drawPheromonesCPU();
+        }
+    }
+    
+    drawPheromonesCPU() {
         const cell = this.pheromoneField.cell;
         
         // Enable anti-aliasing for smoother rendering
@@ -1222,6 +1251,10 @@ class AntForagingSimulation {
             this.ctx.fillStyle = '#00ffff';
             this.ctx.fillText('PERF MODE', 10, 85);
         }
+        
+        // WebGL status indicator
+        this.ctx.fillStyle = this.useWebGL ? '#00ff00' : '#ff0000';
+        this.ctx.fillText(`WebGL: ${this.useWebGL ? 'ON' : 'OFF'}`, 10, 105);
         
         // Instructions at bottom left
         this.ctx.fillStyle = '#ffffff';
@@ -1877,6 +1910,225 @@ class Ant {
                 this.obstacles.push(obstacle);
             }
         }
+    }
+}
+
+// WebGL Renderer for high-performance pheromone rendering
+class WebGLRenderer {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.gl = canvas.getContext('webgl2') || canvas.getContext('webgl');
+        
+        if (!this.gl) {
+            console.warn('WebGL not supported, falling back to CPU rendering');
+            this.supported = false;
+            return;
+        }
+        
+        this.supported = true;
+        this.initShaders();
+        this.initBuffers();
+        this.initTextures();
+    }
+    
+    initShaders() {
+        // Vertex shader for full-screen quad
+        const vertexShaderSource = `
+            attribute vec2 a_position;
+            varying vec2 v_texCoord;
+            
+            void main() {
+                gl_Position = vec4(a_position, 0.0, 1.0);
+                v_texCoord = a_position * 0.5 + 0.5;
+            }
+        `;
+        
+        // Fragment shader for pheromone rendering with blur
+        const fragmentShaderSource = `
+            precision mediump float;
+            
+            uniform sampler2D u_pheromoneTexture;
+            uniform vec2 u_resolution;
+            uniform vec3 u_homeColor;
+            uniform vec3 u_foodColor;
+            uniform float u_blurStrength;
+            
+            varying vec2 v_texCoord;
+            
+            // Gaussian blur kernel
+            vec4 gaussianBlur(sampler2D tex, vec2 uv, vec2 resolution, float strength) {
+                vec4 color = vec4(0.0);
+                float total = 0.0;
+                
+                for (int x = -2; x <= 2; x++) {
+                    for (int y = -2; y <= 2; y++) {
+                        vec2 offset = vec2(float(x), float(y)) * strength / resolution;
+                        vec2 sampleUV = uv + offset;
+                        
+                        if (sampleUV.x >= 0.0 && sampleUV.x <= 1.0 && 
+                            sampleUV.y >= 0.0 && sampleUV.y <= 1.0) {
+                            float weight = exp(-(float(x*x + y*y)) / 8.0);
+                            color += texture2D(tex, sampleUV) * weight;
+                            total += weight;
+                        }
+                    }
+                }
+                
+                return color / total;
+            }
+            
+            void main() {
+                vec2 uv = v_texCoord;
+                vec4 pheromoneData = texture2D(u_pheromoneTexture, uv);
+                
+                // Extract pheromone values (R=home, G=food, B=success)
+                float homeStr = pheromoneData.r;
+                float foodStr = pheromoneData.g;
+                float success = pheromoneData.b;
+                
+                vec4 finalColor = vec4(0.0);
+                
+                // Render home trails (scouting)
+                if (homeStr > 0.02) {
+                    float alpha = min(0.6, homeStr);
+                    finalColor += vec4(u_homeColor * alpha, alpha);
+                }
+                
+                // Render food trails (returning)
+                if (foodStr > 0.02) {
+                    float alpha = min(1.0, (foodStr + success) / 0.8);
+                    float strength = min(1.0, (foodStr + success) / 2.0);
+                    float mappedStrength = pow(strength, 0.7);
+                    
+                    vec3 foodColor = mix(u_homeColor, u_foodColor, mappedStrength);
+                    finalColor += vec4(foodColor * alpha, alpha);
+                }
+                
+                // Apply blur if enabled
+                if (u_blurStrength > 0.0) {
+                    vec4 blurred = gaussianBlur(u_pheromoneTexture, uv, u_resolution, u_blurStrength);
+                    finalColor = mix(finalColor, blurred, 0.3);
+                }
+                
+                gl_FragColor = finalColor;
+            }
+        `;
+        
+        // Compile shaders
+        const vertexShader = this.compileShader(vertexShaderSource, this.gl.VERTEX_SHADER);
+        const fragmentShader = this.compileShader(fragmentShaderSource, this.gl.FRAGMENT_SHADER);
+        
+        // Create program
+        this.program = this.gl.createProgram();
+        this.gl.attachShader(this.program, vertexShader);
+        this.gl.attachShader(this.program, fragmentShader);
+        this.gl.linkProgram(this.program);
+        
+        if (!this.gl.getProgramParameter(this.program, this.gl.LINK_STATUS)) {
+            console.error('WebGL program link error:', this.gl.getProgramInfoLog(this.program));
+            this.supported = false;
+            return;
+        }
+        
+        // Get uniform locations
+        this.uniforms = {
+            pheromoneTexture: this.gl.getUniformLocation(this.program, 'u_pheromoneTexture'),
+            resolution: this.gl.getUniformLocation(this.program, 'u_resolution'),
+            homeColor: this.gl.getUniformLocation(this.program, 'u_homeColor'),
+            foodColor: this.gl.getUniformLocation(this.program, 'u_foodColor'),
+            blurStrength: this.gl.getUniformLocation(this.program, 'u_blurStrength')
+        };
+        
+        // Get attribute location
+        this.attributes = {
+            position: this.gl.getAttribLocation(this.program, 'a_position')
+        };
+    }
+    
+    compileShader(source, type) {
+        const shader = this.gl.createShader(type);
+        this.gl.shaderSource(shader, source);
+        this.gl.compileShader(shader);
+        
+        if (!this.gl.getShaderParameter(shader, this.gl.COMPILE_STATUS)) {
+            console.error('Shader compile error:', this.gl.getShaderInfoLog(shader));
+            this.gl.deleteShader(shader);
+            return null;
+        }
+        
+        return shader;
+    }
+    
+    initBuffers() {
+        // Full-screen quad vertices
+        const positions = new Float32Array([
+            -1, -1,
+             1, -1,
+            -1,  1,
+             1,  1
+        ]);
+        
+        this.positionBuffer = this.gl.createBuffer();
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+        this.gl.bufferData(this.gl.ARRAY_BUFFER, positions, this.gl.STATIC_DRAW);
+    }
+    
+    initTextures() {
+        // Create pheromone texture
+        this.pheromoneTexture = this.gl.createTexture();
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.pheromoneTexture);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MIN_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_MAG_FILTER, this.gl.LINEAR);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_S, this.gl.CLAMP_TO_EDGE);
+        this.gl.texParameteri(this.gl.TEXTURE_2D, this.gl.TEXTURE_WRAP_T, this.gl.CLAMP_TO_EDGE);
+    }
+    
+    updatePheromoneTexture(pheromoneField) {
+        if (!this.supported) return;
+        
+        const { gridW, gridH, home, food, pathSuccess } = pheromoneField;
+        const textureData = new Float32Array(gridW * gridH * 4);
+        
+        // Convert pheromone data to texture format
+        for (let y = 0; y < gridH; y++) {
+            for (let x = 0; x < gridW; x++) {
+                const index = (y * gridW + x) * 4;
+                textureData[index] = home[x][y] / 1000.0;     // R: home pheromone
+                textureData[index + 1] = food[x][y] / 1000.0; // G: food pheromone
+                textureData[index + 2] = pathSuccess[x][y] / 100.0; // B: success
+                textureData[index + 3] = 1.0;                 // A: alpha
+            }
+        }
+        
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.pheromoneTexture);
+        this.gl.texImage2D(this.gl.TEXTURE_2D, 0, this.gl.RGBA, gridW, gridH, 0, this.gl.RGBA, this.gl.FLOAT, textureData);
+    }
+    
+    renderPheromones(homeColor, foodColor, blurStrength = 0.0) {
+        if (!this.supported) return false;
+        
+        this.gl.useProgram(this.program);
+        
+        // Set uniforms
+        this.gl.uniform1i(this.uniforms.pheromoneTexture, 0);
+        this.gl.uniform2f(this.uniforms.resolution, this.canvas.width, this.canvas.height);
+        this.gl.uniform3f(this.uniforms.homeColor, homeColor.r / 255, homeColor.g / 255, homeColor.b / 255);
+        this.gl.uniform3f(this.uniforms.foodColor, foodColor.r / 255, foodColor.g / 255, foodColor.b / 255);
+        this.gl.uniform1f(this.uniforms.blurStrength, blurStrength);
+        
+        // Bind texture
+        this.gl.activeTexture(this.gl.TEXTURE0);
+        this.gl.bindTexture(this.gl.TEXTURE_2D, this.pheromoneTexture);
+        
+        // Set up vertex attributes
+        this.gl.bindBuffer(this.gl.ARRAY_BUFFER, this.positionBuffer);
+        this.gl.enableVertexAttribArray(this.attributes.position);
+        this.gl.vertexAttribPointer(this.attributes.position, 2, this.gl.FLOAT, false, 0, 0);
+        
+        // Render
+        this.gl.drawArrays(this.gl.TRIANGLE_STRIP, 0, 4);
+        
+        return true;
     }
 }
 
