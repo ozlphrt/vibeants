@@ -228,7 +228,7 @@ class AntForagingSimulation {
         this.ants = [];
         this.foodSources = [];
         this.obstacles = [];
-        this.pheromoneField = new PheromoneField(this.width, this.height, 6);
+        this.pheromoneField = null; // Will be initialized in initialize() method
         // Nest properties - will be randomized in initialize()
         this.nest = { 
             x: this.width / 2, 
@@ -1951,7 +1951,16 @@ function hexToRgb(hex) {
 
 // Initialize simulation when page loads
 document.addEventListener('DOMContentLoaded', () => {
+    console.log('DOM loaded, looking for canvas...');
     const canvas = document.getElementById('simulationCanvas');
+    
+    if (!canvas) {
+        console.error('Canvas element not found!');
+        alert('Canvas element not found! Check if simulationCanvas exists in HTML.');
+        return;
+    }
+    
+    console.log('Canvas found:', canvas);
     
     // Set canvas to full window size
     function resizeCanvas() {
@@ -1965,14 +1974,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // Create simulation after canvas is properly sized
     console.log('Creating simulation...');
-    const simulation = new AntForagingSimulation(canvas);
-    console.log('Simulation created successfully');
-    
-    // Initialize and start the simulation
-    console.log('Initializing simulation...');
-    simulation.initialize();
-    console.log('Starting simulation...');
-    simulation.start();
+    try {
+        const simulation = new AntForagingSimulation(canvas);
+        console.log('Simulation created successfully');
+        
+        // Initialize and start the simulation
+        console.log('Initializing simulation...');
+        simulation.initialize();
+        console.log('Starting simulation...');
+        simulation.start();
+        
+        // Make simulation globally available for debugging
+        window.simulation = simulation;
+        
+    } catch (error) {
+        console.error('Error creating/starting simulation:', error);
+        alert('Error starting simulation: ' + error.message);
+    }
     
     // Add keyboard controls
     window.addEventListener('keydown', (e) => {
