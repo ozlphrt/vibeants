@@ -192,9 +192,18 @@ class AntForagingSimulation {
         console.log('Canvas context created, dimensions:', this.width, 'x', this.height);
         
         // Simulation parameters
-        this.antCount = 500;
+        this.antCount = 1000; // Increased for performance testing
         this.evaporationRate = 0.01; // Reduced from 0.05
         this.foodCount = 8; // Increased from 2
+        
+        // Performance optimization parameters
+        this.maxAnts = 2000; // Maximum ants for performance
+        this.performanceMode = false; // Enable performance optimizations
+        this.skipFrames = 0; // Skip frames for performance
+        this.lastFrameTime = 0;
+        this.fps = 0;
+        this.fpsHistory = [];
+        this.fpsUpdateInterval = 30; // Update FPS every 30 frames
         
         // Simulation state
         this.ants = [];
@@ -758,6 +767,18 @@ class AntForagingSimulation {
     }
     
     update() {
+        // Calculate FPS
+        const currentTime = performance.now();
+        if (this.lastFrameTime > 0) {
+            const frameTime = currentTime - this.lastFrameTime;
+            this.fps = 1000 / frameTime;
+            this.fpsHistory.push(this.fps);
+            if (this.fpsHistory.length > 60) {
+                this.fpsHistory.shift();
+            }
+        }
+        this.lastFrameTime = currentTime;
+        
         this.frameCount++;
         
         // Skip simulation updates if paused
@@ -765,9 +786,22 @@ class AntForagingSimulation {
             return;
         }
         
-        // Update all ants (immortal ants)
-        for (const ant of this.ants) {
-            ant.update();
+        // Performance optimization: Skip frames if FPS is low
+        if (this.performanceMode && this.fps < 30) {
+            this.skipFrames++;
+            if (this.skipFrames < 2) return; // Skip every other frame
+            this.skipFrames = 0;
+        }
+        
+        // Update all ants (immortal ants) with performance optimization
+        const antCount = this.ants.length;
+        const updateBatch = Math.max(1, Math.floor(antCount / 10)); // Update in batches
+        
+        for (let i = 0; i < antCount; i += updateBatch) {
+            const endIndex = Math.min(i + updateBatch, antCount);
+            for (let j = i; j < endIndex; j++) {
+                this.ants[j].update();
+            }
         }
         
         // Spawn new ants to maintain population
@@ -838,8 +872,10 @@ class AntForagingSimulation {
         tempCtx.imageSmoothingQuality = 'high';
         
         // Draw pheromones for single colony with improved visual quality
-        for (let x = 0; x < this.pheromoneField.gridW; x++) {
-            for (let y = 0; y < this.pheromoneField.gridH; y++) {
+        // Performance optimization: Skip every other cell in performance mode
+        const stepSize = this.performanceMode && this.fps < 30 ? 2 : 1;
+        for (let x = 0; x < this.pheromoneField.gridW; x += stepSize) {
+            for (let y = 0; y < this.pheromoneField.gridH; y += stepSize) {
                 const homeStr = this.pheromoneField.home[x][y];
                 const foodStr = this.pheromoneField.food[x][y];
                 const success = this.pheromoneField.pathSuccess[x][y];
@@ -1123,10 +1159,22 @@ class AntForagingSimulation {
         this.ctx.fillText(`Colony: ${this.ants.length}`, 10, 25);
         this.ctx.fillText(`Food: ${this.nest.foodStored}/${this.nest.maxCapacity}`, 10, 45);
         
+        // FPS counter
+        const avgFps = this.fpsHistory.length > 0 ? 
+            this.fpsHistory.reduce((a, b) => a + b, 0) / this.fpsHistory.length : 0;
+        this.ctx.fillStyle = this.fps > 50 ? '#00ff00' : this.fps > 30 ? '#ffff00' : '#ff0000';
+        this.ctx.fillText(`FPS: ${this.fps.toFixed(1)} (${avgFps.toFixed(1)})`, 10, 65);
+        
+        // Performance mode indicator
+        if (this.performanceMode) {
+            this.ctx.fillStyle = '#00ffff';
+            this.ctx.fillText('PERF MODE', 10, 85);
+        }
+        
         // Instructions at bottom left
         this.ctx.fillStyle = '#ffffff';
         this.ctx.font = 'bold 12px Arial, sans-serif';
-        this.ctx.fillText('Controls: R=Reset, P=Pause', 10, this.height - 20);
+        this.ctx.fillText('Controls: R=Reset, P=Pause, A=Add Ants, O=Performance Mode', 10, this.height - 20);
         // if (this.ants.length > 0) {
         //     this.ctx.fillStyle = '#ffd700'; // Gold color for debug info
         //     this.ctx.font = 'bold 12px Arial, sans-serif';
@@ -1825,12 +1873,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         if (e.key === 'a' || e.key === 'A') {
             // Add more ants
-            simulation.antCount += 10;
+            simulation.antCount = Math.min(simulation.antCount + 100, simulation.maxAnts);
+            console.log(`Ant count increased to: ${simulation.antCount}`);
         }
         if (e.key === 'p' || e.key === 'P') {
             // Toggle pause state
             simulation.isPaused = !simulation.isPaused;
             console.log('Simulation paused:', simulation.isPaused);
+        }
+        if (e.key === 'o' || e.key === 'O') {
+            // Toggle performance mode
+            simulation.performanceMode = !simulation.performanceMode;
+            console.log('Performance mode:', simulation.performanceMode);
         }
 
         simulation.updateAntCount();
