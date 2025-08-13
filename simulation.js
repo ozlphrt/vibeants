@@ -807,21 +807,33 @@ class AntForagingSimulation {
             return;
         }
         
-        // Performance optimization: Skip frames if FPS is low
-        if (this.performanceMode && this.fps < 30) {
-            this.skipFrames++;
-            if (this.skipFrames < 2) return; // Skip every other frame
-            this.skipFrames = 0;
-        }
-        
-        // Update all ants (immortal ants) with performance optimization
-        const antCount = this.ants.length;
-        const updateBatch = Math.max(1, Math.floor(antCount / 10)); // Update in batches
-        
-        for (let i = 0; i < antCount; i += updateBatch) {
-            const endIndex = Math.min(i + updateBatch, antCount);
-            for (let j = i; j < endIndex; j++) {
-                this.ants[j].update();
+        // Aggressive performance optimization
+        if (this.performanceMode) {
+            // Skip more frames when FPS is low
+            if (this.fps < 30) {
+                this.skipFrames++;
+                if (this.skipFrames < 3) return; // Skip 2 out of 3 frames
+                this.skipFrames = 0;
+            } else if (this.fps < 45) {
+                this.skipFrames++;
+                if (this.skipFrames < 2) return; // Skip every other frame
+                this.skipFrames = 0;
+            }
+            
+            // Update only a subset of ants each frame
+            const antCount = this.ants.length;
+            const updateRatio = this.fps < 30 ? 0.3 : this.fps < 45 ? 0.6 : 1.0; // Update 30%, 60%, or 100% of ants
+            const antsToUpdate = Math.floor(antCount * updateRatio);
+            const startIndex = (this.frameCount % Math.ceil(1 / updateRatio)) * antsToUpdate;
+            
+            for (let i = 0; i < antsToUpdate; i++) {
+                const antIndex = (startIndex + i) % antCount;
+                this.ants[antIndex].update();
+            }
+        } else {
+            // Normal mode - update all ants
+            for (const ant of this.ants) {
+                ant.update();
             }
         }
         
@@ -893,8 +905,16 @@ class AntForagingSimulation {
         tempCtx.imageSmoothingQuality = 'high';
         
         // Draw pheromones for single colony with improved visual quality
-        // Performance optimization: Skip every other cell in performance mode
-        const stepSize = this.performanceMode && this.fps < 30 ? 2 : 1;
+        // Aggressive performance optimization for pheromone rendering
+        let stepSize = 1;
+        if (this.performanceMode) {
+            if (this.fps < 30) {
+                stepSize = 4; // Skip 3 out of 4 cells
+            } else if (this.fps < 45) {
+                stepSize = 2; // Skip every other cell
+            }
+        }
+        
         for (let x = 0; x < this.pheromoneField.gridW; x += stepSize) {
             for (let y = 0; y < this.pheromoneField.gridH; y += stepSize) {
                 const homeStr = this.pheromoneField.home[x][y];
@@ -908,8 +928,8 @@ class AntForagingSimulation {
                         const alpha = Math.min(0.6, homeStr / 100);
                         const scoutingColor = hexToRgb(this.scoutingTrailColor || '#404040');
                         
-                        // Apply Gaussian smoothing for home trails
-                        const smoothedAlpha = this.applyGaussianSmoothing(x, y, 'home', alpha);
+                        // Apply Gaussian smoothing for home trails (skip in performance mode)
+                        const smoothedAlpha = this.performanceMode ? alpha : this.applyGaussianSmoothing(x, y, 'home', alpha);
                         
                         tempCtx.fillStyle = `rgba(${scoutingColor.r}, ${scoutingColor.g}, ${scoutingColor.b}, ${smoothedAlpha})`;
                         tempCtx.fillRect(x * cell, y * cell, cell, cell);
@@ -926,14 +946,16 @@ class AntForagingSimulation {
                         const returningColor = hexToRgb(this.returningTrailColor);
                         const finalAlpha = alpha * mappedStrength;
                         
-                        // Apply Gaussian smoothing for food trails
-                        const smoothedAlpha = this.applyGaussianSmoothing(x, y, 'food', finalAlpha);
+                        // Apply Gaussian smoothing for food trails (skip in performance mode)
+                        const smoothedAlpha = this.performanceMode ? finalAlpha : this.applyGaussianSmoothing(x, y, 'food', finalAlpha);
                         
-                        // Add subtle glow effect for stronger trails
-                        const glowIntensity = Math.min(0.3, smoothedAlpha * 0.5);
-                        if (glowIntensity > 0.05) {
-                            tempCtx.shadowColor = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${glowIntensity})`;
-                            tempCtx.shadowBlur = 2;
+                        // Add subtle glow effect for stronger trails (skip in performance mode)
+                        if (!this.performanceMode) {
+                            const glowIntensity = Math.min(0.3, smoothedAlpha * 0.5);
+                            if (glowIntensity > 0.05) {
+                                tempCtx.shadowColor = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${glowIntensity})`;
+                                tempCtx.shadowBlur = 2;
+                            }
                         }
                         
                         tempCtx.fillStyle = `rgba(${returningColor.r}, ${returningColor.g}, ${returningColor.b}, ${smoothedAlpha})`;
@@ -946,8 +968,10 @@ class AntForagingSimulation {
             }
         }
         
-        // Apply additional blur filter to the entire pheromone layer
-        this.ctx.filter = 'blur(1.5px)'; // Increased blur for smoother trails
+        // Apply additional blur filter to the entire pheromone layer (skip in performance mode)
+        if (!this.performanceMode) {
+            this.ctx.filter = 'blur(1.5px)'; // Increased blur for smoother trails
+        }
         this.ctx.drawImage(tempCanvas, 0, 0);
         this.ctx.filter = 'none';
     }
@@ -1066,7 +1090,14 @@ class AntForagingSimulation {
     
     drawAnts() {
         console.log(`Drawing ${this.ants.length} ants`);
-        for (let ant of this.ants) {
+        
+        // Performance optimization: Draw fewer ants in performance mode
+        const antsToDraw = this.performanceMode && this.fps < 30 ? 
+            Math.floor(this.ants.length * 0.5) : this.ants.length;
+        const drawStep = this.performanceMode && this.fps < 30 ? 2 : 1;
+        
+        for (let i = 0; i < antsToDraw; i += drawStep) {
+            const ant = this.ants[i];
             this.ctx.save();
             this.ctx.translate(ant.position.x, ant.position.y);
             
