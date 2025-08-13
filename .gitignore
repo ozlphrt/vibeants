@@ -1,0 +1,37 @@
+# Versioned simulation files (keep only the main ones)
+simulation_v*.js
+index_v*.html
+simulation_backup.js
+simulation_fixed.js
+simulation_single_nest.js
+
+# Keep only the main files
+!simulation.js
+!index.html
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+
+# Node modules (if you add any)
+node_modules/
