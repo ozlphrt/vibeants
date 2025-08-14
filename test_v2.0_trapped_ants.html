@@ -1,0 +1,198 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Ant Foraging Simulation v2.0 - Trapped Ants Solution</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #1a1a1a;
+            font-family: Arial, sans-serif;
+            overflow: hidden;
+        }
+        
+        #canvas {
+            display: block;
+            background: #2a2a2a;
+        }
+        
+        .fps-counter {
+            position: fixed;
+            bottom: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 8px 12px;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+        
+        .info-panel {
+            position: fixed;
+            top: 20px;
+            left: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 300px;
+            font-size: 14px;
+        }
+        
+        .color-panel {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            transition: opacity 0.3s ease;
+        }
+        
+        .color-panel.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+        
+        .color-input {
+            margin: 5px 0;
+        }
+        
+        .color-input label {
+            display: inline-block;
+            width: 80px;
+        }
+        
+        .color-input input {
+            width: 60px;
+            height: 25px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="simulationCanvas"></canvas>
+    
+    <div class="fps-counter" id="fpsCounter">FPS: --</div>
+    
+    <div class="info-panel">
+        <h3>Ant Foraging Simulation v2.0</h3>
+        <p><strong>New Feature:</strong> Trapped Ant Escape Mode</p>
+        <ul>
+            <li>Ants detect when they're stuck (not moving for 2 seconds)</li>
+            <li>Stuck ants enter "escape mode" with pulsing red color</li>
+            <li>Escape mode: Strong random movement + obstacle avoidance</li>
+            <li>Ants temporarily ignore pheromone trails to find alternative paths</li>
+            <li>Maximum 5 escape attempts per ant</li>
+        </ul>
+        <p><strong>How to Test:</strong></p>
+        <ol>
+            <li>Press <strong>P</strong> to pause</li>
+            <li>Drag obstacles to create a maze around the nest</li>
+            <li>Drag apples to the far side of obstacles</li>
+            <li>Press <strong>P</strong> to resume</li>
+            <li>Watch ants get trapped and enter escape mode (red pulsing)</li>
+        </ol>
+        <p><strong>Controls:</strong> R=Reset, P=Pause, A=Add Ants</p>
+    </div>
+    
+    <div class="color-panel" id="colorPanel">
+        <h4>Colors</h4>
+        <div class="color-input">
+            <label>Nest:</label>
+            <input type="color" id="nestColor" value="#3a6d36">
+        </div>
+        <div class="color-input">
+            <label>Ants:</label>
+            <input type="color" id="antColor" value="#b03030">
+        </div>
+        <div class="color-input">
+            <label>Return Trail:</label>
+            <input type="color" id="returningTrailColor" value="#732626">
+        </div>
+        <div class="color-input">
+            <label>Scout Trail:</label>
+            <input type="color" id="scoutingTrailColor" value="#292e28">
+        </div>
+        <div class="color-input">
+            <label>Obstacles:</label>
+            <input type="color" id="obstacleColor" value="#666666">
+        </div>
+    </div>
+
+    <script src="simulation_v11_performance_optimized.js"></script>
+    <script>
+        // FPS counter
+        let frameCount = 0;
+        let lastTime = performance.now();
+        
+
+        
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                document.getElementById('fpsCounter').textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            requestAnimationFrame(updateFPS);
+        }
+        
+        // Color panel auto-hide
+        let colorPanelTimeout;
+        const colorPanel = document.getElementById('colorPanel');
+        
+        function showColorPanel() {
+            colorPanel.classList.remove('hidden');
+            clearTimeout(colorPanelTimeout);
+            colorPanelTimeout = setTimeout(() => {
+                colorPanel.classList.add('hidden');
+            }, 3000);
+        }
+        
+        // Get the simulation instance that was created by the simulation file
+        const canvas = document.getElementById('simulationCanvas');
+        const simulation = window.simulation; // The simulation file creates this
+        
+        // Color controls
+        const colorInputs = {
+            nestColor: document.getElementById('nestColor'),
+            antColor: document.getElementById('antColor'),
+            returningTrailColor: document.getElementById('returningTrailColor'),
+            scoutingTrailColor: document.getElementById('scoutingTrailColor'),
+            obstacleColor: document.getElementById('obstacleColor')
+        };
+        
+        Object.keys(colorInputs).forEach(key => {
+            colorInputs[key].addEventListener('change', (e) => {
+                simulation[key] = e.target.value;
+                showColorPanel();
+            });
+        });
+        
+        // Mouse/touch events for color panel
+        document.addEventListener('mousemove', showColorPanel);
+        document.addEventListener('touchstart', showColorPanel);
+        
+
+        
+        // Start FPS counter
+        updateFPS();
+        
+
+        
+
+    </script>
+</body>
+</html>

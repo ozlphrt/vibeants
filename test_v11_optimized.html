@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Ant Foraging Simulation</title>
+    <title>Test V11 Optimized Simulation</title>
     <style>
         body {
             margin: 0;
@@ -16,6 +16,20 @@
         #simulationCanvas {
             display: block;
             background: #202020;
+        }
+        
+        .fps-counter {
+            position: fixed;
+            bottom: 10px;
+            right: 10px;
+            background: rgba(0, 0, 0, 0.7);
+            color: #00ff00;
+            padding: 4px 8px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 11px;
+            font-weight: bold;
+            z-index: 1000;
         }
         
         #colorPanel {
@@ -67,8 +81,6 @@
             margin-bottom: 5px;
         }
         
-
-        
         .defaultButton {
             background: #ffa500;
             color: black;
@@ -97,6 +109,8 @@
     </style>
 </head>
 <body>
+    <div class="fps-counter" id="fpsCounter">FPS: --</div>
+    
     <div id="colorPanel">
         <div class="labels">
             <div>Nest</div>
@@ -105,10 +119,10 @@
             <div>Scouting</div>
         </div>
         <div class="colorGrid">
-            <div class="colorCircle" id="nestColor" style="background-color: #a67c52;"></div>
-            <div class="colorCircle" id="antColor" style="background-color: #a67c52;"></div>
-            <div class="colorCircle" id="returningTrailColor" style="background-color: #ff8c00;"></div>
-            <div class="colorCircle" id="scoutingTrailColor" style="background-color: #404040;"></div>
+            <div class="colorCircle" id="nestColor" style="background-color: #3a6d36;"></div>
+            <div class="colorCircle" id="antColor" style="background-color: #b03030;"></div>
+            <div class="colorCircle" id="returningTrailColor" style="background-color: #732626;"></div>
+            <div class="colorCircle" id="scoutingTrailColor" style="background-color: #292e28;"></div>
         </div>
         
         <button class="defaultButton" id="setDefault">Set as Default</button>
@@ -120,11 +134,31 @@
         </div>
     </div>
     
-
-    
     <div id="hoverZone"></div>
+    
     <canvas id="simulationCanvas"></canvas>
-    <script src="simulation.js"></script>
+    <script src="simulation_v11_performance_optimized.js"></script>
+    <script>
+        // FPS Counter
+        let frameCount = 0;
+        let lastTime = performance.now();
+        const fpsCounter = document.getElementById('fpsCounter');
+        
+        function updateFPS() {
+            frameCount++;
+            const currentTime = performance.now();
+            
+            if (currentTime - lastTime >= 1000) {
+                const fps = Math.round((frameCount * 1000) / (currentTime - lastTime));
+                fpsCounter.textContent = `FPS: ${fps}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+            
+            requestAnimationFrame(updateFPS);
+        }
+        
+        updateFPS();
+    </script>
 </body>
 </html>
-
