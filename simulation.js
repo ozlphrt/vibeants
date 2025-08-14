@@ -2192,10 +2192,7 @@ class AntForagingSimulation {
             this.ctx.fillStyle = '#ffffff';
         }
         
-        // Instructions at bottom left
-        this.ctx.fillStyle = '#ffffff';
-        this.ctx.font = 'bold 12px Arial, sans-serif';
-        this.ctx.fillText('Controls: R=Reset', 10, this.height - 20);
+
         // if (this.ants.length > 0) {
         //     this.ctx.fillStyle = '#ffd700'; // Gold color for debug info
         //     this.ctx.font = 'bold 12px Arial, sans-serif';
@@ -2425,13 +2422,20 @@ class Food {
         
         const fraction = Math.max(0, Math.min(1, this.amount / this.originalAmount));
         
-        // Draw food background (depleted area)
+        // Draw shadow
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.4)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetX = 3;
+        ctx.shadowOffsetY = 3;
+        
+        // Draw food background (depleted area) with shadow
         ctx.fillStyle = 'rgba(160, 57, 57, 0.3)';
         ctx.beginPath();
         ctx.arc(0, 0, this.radius, 0, Math.PI * 2);
         ctx.fill();
         
-        // Draw food amount (filled area)
+        // Draw food amount (filled area) with shadow
         if (fraction > 0) {
             const startAngle = -Math.PI / 2;
             const endAngle = startAngle + Math.PI * 2 * fraction;
@@ -2442,25 +2446,36 @@ class Food {
             ctx.closePath();
             ctx.fill();
         }
+        ctx.restore();
         
-        // Draw stem
+        // Draw stem with shadow
         ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.3)';
+        ctx.shadowBlur = 4;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillStyle = '#5a3d1b';
         ctx.fillRect(-2, -this.radius - 7, 4, 7);
         
-        // Draw leaf
+        // Draw leaf with shadow
         ctx.fillStyle = '#4f7d4f';
         ctx.beginPath();
         ctx.ellipse(-this.radius * 0.25 - 1, -this.radius - 9, this.radius * 0.3, this.radius * 0.12, Math.PI / 5, 0, Math.PI * 2);
         ctx.fill();
         ctx.restore();
         
-        // Draw amount text
+        // Draw amount text with shadow
+        ctx.save();
+        ctx.shadowColor = 'rgba(0, 0, 0, 0.6)';
+        ctx.shadowBlur = 2;
+        ctx.shadowOffsetX = 1;
+        ctx.shadowOffsetY = 1;
         ctx.fillStyle = '#fff';
         ctx.font = '700 16px system-ui';
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         ctx.fillText(this.amount.toString(), 0, 0);
+        ctx.restore();
         
         ctx.restore();
     }
