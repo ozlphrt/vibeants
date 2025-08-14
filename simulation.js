@@ -284,12 +284,12 @@ class AntForagingSimulation {
         
         // Color customization - load from localStorage or use defaults
         const savedColors = loadDefaultColors();
-        this.nestColor = savedColors.nestColor || '#a67c52';
-        this.antColor = savedColors.antColor || '#a67c52';
+        this.nestColor = savedColors.nestColor || '#3a6d36'; // RGB(58, 109, 54) - Nest and exploring ant
+        this.antColor = savedColors.antColor || '#b03030'; // RGB(176, 48, 48) - Returning Ants
         
         // Trail colors
-        this.returningTrailColor = savedColors.returningTrailColor || '#ff8c00';
-        this.scoutingTrailColor = savedColors.scoutingTrailColor || '#404040';
+        this.returningTrailColor = savedColors.returningTrailColor || '#732626'; // RGB(115, 38, 38) - Returning trail
+        this.scoutingTrailColor = savedColors.scoutingTrailColor || '#292e28'; // RGB(41, 46, 40) - Exploring trail
         
         // Helper method to get direct path between two points
         this.getDirectPath = (from, to) => {
